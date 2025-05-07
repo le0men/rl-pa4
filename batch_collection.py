@@ -69,8 +69,10 @@ def pair_trajectories(trajs, temp=1.0, seed=None):
     for i1,i2 in idx_pairs:
         label1 = 1/(1+ np.exp(-(returns[i1]-returns[i2])))
         label2 = 1/(1+ np.exp(-(returns[i2]-returns[i1])))
+        prob = torch.tensor([label1,label2])
+        index = torch.multinomial(prob, num_samples=1).item()
 
-        pair_data.append({"traj1": trajs[i1], "traj2" : trajs[i2], "label" : (label1,label2)})
+        pair_data.append({"traj1": trajs[i1], "traj2" : trajs[i2], "label" : index})
 
     return pair_data
 
@@ -101,7 +103,7 @@ def main():
     policy = ContinuousPolicy(obs_dim, act_dim)
     policy.load_state_dict(torch.load("swimmer_checkpoint.pt", weights_only=False))
 
-    trajectories = batch_collection(env, policy, seed, total_trajectories=128)
+    trajectories = batch_collection(env, policy, seed, total_trajectories=256)
 
     mean_reward = np.mean([np.sum(traj[1]) for traj in trajectories])
     std_reward = np.std([np.sum(traj[1]) for traj in trajectories])

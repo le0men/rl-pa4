@@ -75,12 +75,11 @@ class DPOTrainer:
                             states2 = batch["traj2_state"][i]
                             acts2 = batch["traj2_act"][i]
                             label = batch["label"][i]
-                            index = torch.multinomial(label, num_samples=1).item()
                             
                             theta_traj1_logp = self.policy.compute_log_likelihood(states1, acts1)
                             theta_traj2_logp = self.policy.compute_log_likelihood(states2, acts2)
 
-                            if index==0:
+                            if label==0:
                                 theta_w_logp.append(torch.sum(theta_traj1_logp))
                                 theta_l_logp.append(torch.sum(theta_traj2_logp))
                                 ref_w_logp.append(batch["traj1_logp"][i])
@@ -99,9 +98,9 @@ class DPOTrainer:
                         ref_l_logp = torch.stack(ref_l_logp)
 
                         logits_loss = self.beta * (theta_w_logp - theta_l_logp - (ref_w_logp - ref_l_logp))
-                        losses = (logits_loss-1)**2
+                        # losses = (logits_loss-1)**2
                         
-                        # losses = -torch.nn.functional.logsigmoid(logits_loss)
+                        losses = -torch.nn.functional.logsigmoid(logits_loss)
                         loss = losses.mean()
                         losses_graph.append(loss.item())
                         
