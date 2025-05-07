@@ -9,6 +9,7 @@ from tqdm import tqdm
 from batch_collection import collect_pair_data
 import argparse
 import yaml
+import matplotlib.pyplot as plt
 class PairedTrajectoryDataset(Dataset):
     def __init__(self, pair_data):
         self.data = pair_data
@@ -51,12 +52,15 @@ class DPOTrainer:
         # TODO: implement DPO training
         dataset = PairedTrajectoryDataset(pair_data)
         loader = DataLoader(dataset, batch_size=self.batch_size, shuffle= True)
-    
+        
+        losses_agg = []
+
         for iteration in range(num_iterations):
             # if not first iteration, do iterative DPO
             # otherwise, just do normal DPO
             if iteration==0:
-                for i in tqdm(range(num_epochs_per_iter)):              
+                for _ in tqdm(range(num_epochs_per_iter)):    
+                    losses_graph = []          
                     for batch in loader:
         
                         #go through traj (stored s,a) and calc theta logprobs
@@ -95,20 +99,29 @@ class DPOTrainer:
                         ref_l_logp = torch.stack(ref_l_logp)
 
                         logits_loss = self.beta * (theta_w_logp - theta_l_logp - (ref_w_logp - ref_l_logp))
-                        # losses = (logits_loss-1)**2
+                        losses = (logits_loss-1)**2
                         
-                        losses = -torch.nn.functional.logsigmoid(logits_loss)
+                        # losses = -torch.nn.functional.logsigmoid(logits_loss)
                         loss = losses.mean()
-                        print(loss)
+                        losses_graph.append(loss.item())
+                        
 
                         #gd on lloss
                         self.optimizer.zero_grad()
                         loss.backward()
                         self.optimizer.step()
-
+ 
+                    losses_agg.append(sum(losses_graph)/self.batch_size)
+                    print(losses_agg)    
 
             else:
                 pass
+
+        plt.plot(losses_agg)
+        plt.title("Training Loss Curve")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.show()
 
 
 def main():
@@ -138,6 +151,7 @@ def main():
     else:
         torch.save(policy.state_dict(), "dpo.pt")
 
+    
     print(dpo._evaluate(seed=42))
 
 if __name__ == "__main__":

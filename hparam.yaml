@@ -1,5 +1,5 @@
-lr: 1e-4 # these are the hparams that work for the solution!
+lr: 5e-4 # these are the hparams that work for the solution!
 beta: 1e-2
 num_epochs_per_iter: 6
-batch_size: 16
+batch_size: 12
 iterative_dpo: false

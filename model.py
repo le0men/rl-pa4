@@ -26,7 +26,8 @@ class ContinuousPolicy(nn.Module):
         return means, stds
 
     def _gaussian_logp(self, means, stds, acts):
-        dist = torch.distributions.Normal(means, stds)
+        cov = torch.diag_embed(stds**2) 
+        dist = torch.distributions.MultivariateNormal(means, cov)
         return torch.sum(dist.log_prob(acts),axis=-1)
 
 
@@ -47,6 +48,11 @@ class ContinuousPolicy(nn.Module):
         
 
     def compute_log_likelihood(self, x, acts):
+        agg = []
         means, stds = self._mean_std(x)
-        return self._gaussian_logp(means,stds,acts)
+        for i in range(x.size(dim=0)):
+            res = self._gaussian_logp(means[i],stds[i],acts[i])
+            agg.append(res)
+        
+        return torch.stack(agg)
 
