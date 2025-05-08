@@ -103,7 +103,7 @@ def main():
     policy = ContinuousPolicy(obs_dim, act_dim)
     policy.load_state_dict(torch.load("swimmer_checkpoint.pt", weights_only=False))
 
-    trajectories = batch_collection(env, policy, seed, total_trajectories=256)
+    trajectories = batch_collection(env, policy, seed, total_trajectories=4096)
 
     mean_reward = np.mean([np.sum(traj[1]) for traj in trajectories])
     std_reward = np.std([np.sum(traj[1]) for traj in trajectories])

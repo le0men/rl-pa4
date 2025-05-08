@@ -55,15 +55,15 @@ class DPOTrainer:
             # if not first iteration, do iterative DPO
             # otherwise, just do normal DPO
             if iteration!=0:
-                pair_data = collect_pair_data(self.policy,seed=42,total_trajectories=128)
+                pair_data = collect_pair_data(self.policy,seed=42,total_trajectories=1024)
 
             dataset = PairedTrajectoryDataset(pair_data)
             loader = DataLoader(dataset, batch_size=self.batch_size, shuffle= True)
             
-            for _ in tqdm(range(num_epochs_per_iter)):    
+            for epoch in tqdm(range(num_epochs_per_iter)):    
                 for batch in loader:
                     
-                    #go through traj (stored s,a) and calc theta logprobs
+                    # go through traj (stored s,a) and calc theta logprobs
                     theta_w_logp = []
                     theta_l_logp = []
                     ref_w_logp = []
@@ -98,15 +98,20 @@ class DPOTrainer:
                     ref_l_logp = torch.stack(ref_l_logp)
 
                     logits_loss = self.beta * (theta_w_logp - theta_l_logp - (ref_w_logp - ref_l_logp))
+
                     losses = (logits_loss-1)**2
-                    
                     # losses = -torch.nn.functional.logsigmoid(logits_loss)
+                    
                     loss = losses.mean()                        
 
-                    #gd on lloss
+                    # gd on loss
                     self.optimizer.zero_grad()
                     loss.backward()
-                    self.optimizer.step() 
+                    self.optimizer.step()
+
+                r, s = self._evaluate(seed=seed)
+                print(f"Iteration {iteration}, Epoch {epoch}, Mean Reward: {r}, Std Reward: {s}")
+                    
 
 
 def main():
@@ -125,16 +130,21 @@ def main():
     dpo = DPOTrainer(env, policy, optimizer, float(hparams["beta"]), int(hparams["batch_size"]))
     
     if hparams["iterative_dpo"]:
+        print("Iterative DPO")
         iterations = 10
     else:
+        print("Normal DPO")
         iterations = 1
 
     dpo.train(pair_data, num_iterations=iterations, seed=42, num_epochs_per_iter=hparams["num_epochs_per_iter"])
 
     if hparams["iterative_dpo"]:
+        # torch.save(policy.state_dict(), "dpo_iterative.pt")
         pass
     else:
-        torch.save(policy.state_dict(), "dpo.pt")
+        pass
+        # torch.save(policy.state_dict(), "dpo.pt")
+        
 
     
     print(dpo._evaluate(seed=42))
