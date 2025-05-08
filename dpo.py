@@ -50,77 +50,63 @@ class DPOTrainer:
 
     def train(self, pair_data, num_epochs_per_iter=6, num_iterations=10, seed=None):
         # TODO: implement DPO training
-        dataset = PairedTrajectoryDataset(pair_data)
-        loader = DataLoader(dataset, batch_size=self.batch_size, shuffle= True)
-        
-        losses_agg = []
 
         for iteration in range(num_iterations):
             # if not first iteration, do iterative DPO
             # otherwise, just do normal DPO
-            if iteration==0:
-                for _ in tqdm(range(num_epochs_per_iter)):    
-                    losses_graph = []          
-                    for batch in loader:
-        
-                        #go through traj (stored s,a) and calc theta logprobs
-                        theta_w_logp = []
-                        theta_l_logp = []
-                        ref_w_logp = []
-                        ref_l_logp = []
+            if iteration!=0:
+                pair_data = collect_pair_data(self.policy,seed=42,total_trajectories=128)
 
-                        for i in range(len(batch["traj1_state"])):
-                            states1 = batch["traj1_state"][i]
-                            acts1 = batch["traj1_act"][i]
-                            states2 = batch["traj2_state"][i]
-                            acts2 = batch["traj2_act"][i]
-                            label = batch["label"][i]
-                            
-                            theta_traj1_logp = self.policy.compute_log_likelihood(states1, acts1)
-                            theta_traj2_logp = self.policy.compute_log_likelihood(states2, acts2)
+            dataset = PairedTrajectoryDataset(pair_data)
+            loader = DataLoader(dataset, batch_size=self.batch_size, shuffle= True)
+            
+            for _ in tqdm(range(num_epochs_per_iter)):    
+                for batch in loader:
+                    
+                    #go through traj (stored s,a) and calc theta logprobs
+                    theta_w_logp = []
+                    theta_l_logp = []
+                    ref_w_logp = []
+                    ref_l_logp = []
 
-                            if label==0:
-                                theta_w_logp.append(torch.sum(theta_traj1_logp))
-                                theta_l_logp.append(torch.sum(theta_traj2_logp))
-                                ref_w_logp.append(batch["traj1_logp"][i])
-                                ref_l_logp.append(batch["traj2_logp"][i])
-                            else:
-                                theta_l_logp.append(torch.sum(theta_traj1_logp))
-                                theta_w_logp.append(torch.sum(theta_traj2_logp))
-                                ref_l_logp.append(batch["traj1_logp"][i])
-                                ref_w_logp.append(batch["traj2_logp"][i])
-                          
-
-                        #use with stored data logprobs to calcv loss
-                        theta_w_logp = torch.stack(theta_w_logp)
-                        theta_l_logp = torch.stack(theta_l_logp)
-                        ref_w_logp = torch.stack(ref_w_logp)
-                        ref_l_logp = torch.stack(ref_l_logp)
-
-                        logits_loss = self.beta * (theta_w_logp - theta_l_logp - (ref_w_logp - ref_l_logp))
-                        # losses = (logits_loss-1)**2
+                    for i in range(len(batch["traj1_state"])):
+                        states1 = batch["traj1_state"][i]
+                        acts1 = batch["traj1_act"][i]
+                        states2 = batch["traj2_state"][i]
+                        acts2 = batch["traj2_act"][i]
+                        label = batch["label"][i]
                         
-                        losses = -torch.nn.functional.logsigmoid(logits_loss)
-                        loss = losses.mean()
-                        losses_graph.append(loss.item())
+                        theta_traj1_logp = self.policy.compute_log_likelihood(states1, acts1)
+                        theta_traj2_logp = self.policy.compute_log_likelihood(states2, acts2)
+
+                        if label==0:
+                            theta_w_logp.append(torch.sum(theta_traj1_logp))
+                            theta_l_logp.append(torch.sum(theta_traj2_logp))
+                            ref_w_logp.append(batch["traj1_logp"][i])
+                            ref_l_logp.append(batch["traj2_logp"][i])
+                        else:
+                            theta_l_logp.append(torch.sum(theta_traj1_logp))
+                            theta_w_logp.append(torch.sum(theta_traj2_logp))
+                            ref_l_logp.append(batch["traj1_logp"][i])
+                            ref_w_logp.append(batch["traj2_logp"][i])
                         
 
-                        #gd on lloss
-                        self.optimizer.zero_grad()
-                        loss.backward()
-                        self.optimizer.step()
- 
-                    losses_agg.append(sum(losses_graph)/self.batch_size)
-                    print(losses_agg)    
+                    #use with stored data logprobs to calcv loss
+                    theta_w_logp = torch.stack(theta_w_logp)
+                    theta_l_logp = torch.stack(theta_l_logp)
+                    ref_w_logp = torch.stack(ref_w_logp)
+                    ref_l_logp = torch.stack(ref_l_logp)
 
-            else:
-                pass
+                    logits_loss = self.beta * (theta_w_logp - theta_l_logp - (ref_w_logp - ref_l_logp))
+                    losses = (logits_loss-1)**2
+                    
+                    # losses = -torch.nn.functional.logsigmoid(logits_loss)
+                    loss = losses.mean()                        
 
-        plt.plot(losses_agg)
-        plt.title("Training Loss Curve")
-        plt.xlabel("Epoch")
-        plt.ylabel("Loss")
-        plt.show()
+                    #gd on lloss
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step() 
 
 
 def main():
